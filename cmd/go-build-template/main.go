@@ -14,8 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package version
+package main
 
-// VERSION is the app-global version string, which should be substituted with a
-// real value during build.
-var VERSION = "UNKNOWN"
+import (
+	"log"
+	"github.com/sythe21/go-build-template/version"
+)
+
+func main() {
+	log.Printf("hello, world!")
+	log.Printf("version: " + version.VERSION)
+}

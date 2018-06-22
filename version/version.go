@@ -14,10 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package version
 
-import "log"
+// VERSION is the app-global version string, which should be substituted with a real value during build.
+var VERSION = "UNKNOWN"
 
-func main() {
-	log.Printf("hello, world!")
-}
+// GITCOMMIT is the git SHA, which should be substituted with a real value during build.
+var GITCOMMIT = "UNKNOWN"

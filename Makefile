@@ -1,172 +1,114 @@
-# Copyright 2016 The Kubernetes Authors.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 
-# The binary to build (just the basename).
-BIN := myapp
+BIN := go-build-template
+REGISTRY ?= index.docker.io/rholcombe
+PKG := github.com/sythe21/$(BIN)
 
-# This repo's root import path (under GOPATH).
-PKG := github.com/thockin/go-build-template
-
-# Where to push the docker image.
-REGISTRY ?= thockin
-
-# Which architecture to build - see $(ALL_ARCH) for options.
-ARCH ?= amd64
-
-# This version-strategy uses git tags to set the version string
 VERSION := $(shell git describe --tags --always --dirty)
-#
-# This version-strategy uses a manual value to set the version string
-#VERSION := 1.2.3
+GIT_COMMIT=$(shell git rev-parse HEAD)
+GIT_DIRTY=$(shell test -n "`git status --porcelain`" && echo "+CHANGES" || true)
+IMAGE := $(REGISTRY)/$(BIN)
 
-###
-### These variables should not need tweaking.
-###
+default: test
 
-SRC_DIRS := cmd pkg # directories which hold app source (not vendored)
+help:
+	@echo 'Management commands'
+	@echo
+	@echo 'Usage:'
+	@echo '    make build           Compile the project.'
+	@echo '    make get-deps        runs dep ensure, mostly used for ci.'
+	@echo '    make build-alpine    Compile optimized for alpine linux.'
+	@echo '    make package         Build final docker image with just the go binary inside'
+	@echo '    make test            Run tests on a compiled project.'
+	@echo '    make login           Log in to docker registry - requires $DOCKER_USER and $DOCKER_PASS'
+	@echo '    make tag             Tag image created by package with latest, git commit and version'
+	@echo '    make tag-release     In addition to tag, also tags a :release build'
+	@echo '    make push            Push tagged images to registry'
+	@echo '    make push-release    In addition to push, also pushes a :release tag'
+	@echo '    make clean           Clean the directory tree.'
+	@echo '    make fmt             Formats go code'
+	@echo '    make vet             Checks for suspicous constructs.'
+	@echo '    make lint            Checks for golang syntax.'
+	@echo '    make check           Runs vet and lint'
+	@echo
 
-ALL_ARCH := amd64 arm arm64 ppc64le
+init:
+	go get -u github.com/golang/dep/cmd/dep
+	go get -u golang.org/x/lint/golint
+	go get -u golang.org/x/tools/cmd/goimports
+	dep status 2>&1 > /dev/null || dep init
 
-# Set default base image dynamically for each arch
-ifeq ($(ARCH),amd64)
-    BASEIMAGE?=alpine
-endif
-ifeq ($(ARCH),arm)
-    BASEIMAGE?=armel/busybox
-endif
-ifeq ($(ARCH),arm64)
-    BASEIMAGE?=aarch64/busybox
-endif
-ifeq ($(ARCH),ppc64le)
-    BASEIMAGE?=ppc64le/busybox
-endif
+dep:
+	dep ensure
 
-IMAGE := $(REGISTRY)/$(BIN)-$(ARCH)
+dependencies: dep ensure
 
-BUILD_IMAGE ?= golang:1.9-alpine
-
-# If you want to build all binaries, see the 'all-build' rule.
-# If you want to build all containers, see the 'all-container' rule.
-# If you want to build AND push all containers, see the 'all-push' rule.
-all: build
+build:
+	@echo "building ${BIN} ${VERSION}"
+	@echo "GOPATH=${GOPATH}"
+	CGO_ENABLED=0 go build \
+	  -installsuffix "static" \
+	  -ldflags '-X ${PKG}/version.VERSION=${VERSION} -X ${PKG}/version.GITCOMMIT=${GIT_COMMIT}${GIT_DIRTY}' \
+	  -o ${GOPATH}/bin/${BIN} \
+	  cmd/go-build-template/main.go
 
 build-%:
-	@$(MAKE) --no-print-directory ARCH=$* build
+	@echo "building ${BIN} ${VERSION}"
+	@echo "GOPATH=${GOPATH}"
+	CGO_ENABLED=0 GOOS=$* go build \
+	  -installsuffix "static" \
+	  -ldflags '-X ${PKG}/version.VERSION=${VERSION} -X ${PKG}/version.GITCOMMIT=${GIT_COMMIT}${GIT_DIRTY}' \
+	  -o ${GOPATH}/bin/${BIN} \
+	  cmd/go-build-template/main.go
 
-container-%:
-	@$(MAKE) --no-print-directory ARCH=$* container
+fmt: $(GO_SOURCES)
+	gofmt -w $<
+	goimports -w $<
 
-push-%:
-	@$(MAKE) --no-print-directory ARCH=$* push
+check: vet lint
 
-all-build: $(addprefix build-, $(ALL_ARCH))
+vet:
+	go vet ./...
 
-all-container: $(addprefix container-, $(ALL_ARCH))
+lint:
+	golint ./...
 
-all-push: $(addprefix push-, $(ALL_ARCH))
+package:
+	@echo "building image ${BIN} ${VERSION} $(GIT_COMMIT)"
+	docker build --build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` --build-arg VERSION=${VERSION} --build-arg GIT_COMMIT=$(GIT_COMMIT) -t $(BIN):local .
 
-build: bin/$(ARCH)/$(BIN)
+login: guard-DOCKER_USER guard-DOCKER_PASS
+	@echo "Logging in to dockerhub ${REGISTRY}"	
+	docker login -u ${DOCKER_USER} -p ${DOCKER_PASS} ${REGISTRY}
 
-bin/$(ARCH)/$(BIN): build-dirs
-	@echo "building: $@"
-	@docker run                                                             \
-	    -ti                                                                 \
-	    --rm                                                                \
-	    -u $$(id -u):$$(id -g)                                              \
-	    -v "$$(pwd)/.go:/go"                                                \
-	    -v "$$(pwd):/go/src/$(PKG)"                                         \
-	    -v "$$(pwd)/bin/$(ARCH):/go/bin"                                    \
-	    -v "$$(pwd)/bin/$(ARCH):/go/bin/$$(go env GOOS)_$(ARCH)"            \
-	    -v "$$(pwd)/.go/std/$(ARCH):/usr/local/go/pkg/linux_$(ARCH)_static" \
-	    -w /go/src/$(PKG)                                                   \
-	    $(BUILD_IMAGE)                                                      \
-	    /bin/sh -c "                                                        \
-	        ARCH=$(ARCH)                                                    \
-	        VERSION=$(VERSION)                                              \
-	        PKG=$(PKG)                                                      \
-	        ./build/build.sh                                                \
-	    "
+tag:
+	@echo "Tagging: latest ${VERSION}"
+	docker tag $(BIN):local $(IMAGE):${VERSION}
+	docker tag $(BIN):local $(IMAGE):latest
 
-# Example: make shell CMD="-c 'date > datefile'"
-shell: build-dirs
-	@echo "launching a shell in the containerized build environment"
-	@docker run                                                             \
-	    -ti                                                                 \
-	    --rm                                                                \
-	    -u $$(id -u):$$(id -g)                                              \
-	    -v "$$(pwd)/.go:/go"                                                \
-	    -v "$$(pwd):/go/src/$(PKG)"                                         \
-	    -v "$$(pwd)/bin/$(ARCH):/go/bin"                                    \
-	    -v "$$(pwd)/bin/$(ARCH):/go/bin/$$(go env GOOS)_$(ARCH)"            \
-	    -v "$$(pwd)/.go/std/$(ARCH):/usr/local/go/pkg/linux_$(ARCH)_static" \
-	    -w /go/src/$(PKG)                                                   \
-	    $(BUILD_IMAGE)                                                      \
-	    /bin/sh $(CMD)
+tag-release:
+	@echo "Tagging: release"
+	docker tag $(BIN):local $(IMAGE):release
 
-DOTFILE_IMAGE = $(subst :,_,$(subst /,_,$(IMAGE))-$(VERSION))
+push: tag
+	@echo "Pushing docker image to registry: latest ${VERSION} $(GIT_COMMIT)"
+	docker push $(IMAGE):${VERSION}
+	docker push $(IMAGE):latest
 
-container: .container-$(DOTFILE_IMAGE) container-name
-.container-$(DOTFILE_IMAGE): bin/$(ARCH)/$(BIN) Dockerfile.in
-	@sed \
-	    -e 's|ARG_BIN|$(BIN)|g' \
-	    -e 's|ARG_ARCH|$(ARCH)|g' \
-	    -e 's|ARG_FROM|$(BASEIMAGE)|g' \
-	    Dockerfile.in > .dockerfile-$(ARCH)
-	@docker build -t $(IMAGE):$(VERSION) -f .dockerfile-$(ARCH) .
-	@docker images -q $(IMAGE):$(VERSION) > $@
+push-release: tag tag-release push
+	@echo "Pushing docker image to registry: release"
+	docker push $(IMAGE):release
 
-container-name:
-	@echo "container: $(IMAGE):$(VERSION)"
 
-push: .push-$(DOTFILE_IMAGE) push-name
-.push-$(DOTFILE_IMAGE): .container-$(DOTFILE_IMAGE)
-ifeq ($(findstring gcr.io,$(REGISTRY)),gcr.io)
-	@gcloud docker -- push $(IMAGE):$(VERSION)
-else
-	@docker push $(IMAGE):$(VERSION)
-endif
-	@docker images -q $(IMAGE):$(VERSION) > $@
+clean:
+	@test ! -e bin/${BIN} || rm bin/${BIN}
 
-push-name:
-	@echo "pushed: $(IMAGE):$(VERSION)"
+test:
+	go test -v ./...
 
-version:
-	@echo $(VERSION)
+guard-%:
+	@ if [ "${${*}}" = "" ]; then \
+		echo "Environment variable $* not set"; \
+		exit 1; \
+	fi
 
-test: build-dirs
-	@docker run                                                             \
-	    -ti                                                                 \
-	    --rm                                                                \
-	    -u $$(id -u):$$(id -g)                                              \
-	    -v "$$(pwd)/.go:/go"                                                \
-	    -v "$$(pwd):/go/src/$(PKG)"                                         \
-	    -v "$$(pwd)/bin/$(ARCH):/go/bin"                                    \
-	    -v "$$(pwd)/.go/std/$(ARCH):/usr/local/go/pkg/linux_$(ARCH)_static" \
-	    -w /go/src/$(PKG)                                                   \
-	    $(BUILD_IMAGE)                                                      \
-	    /bin/sh -c "                                                        \
-	        ./build/test.sh $(SRC_DIRS)                                     \
-	    "
-
-build-dirs:
-	@mkdir -p bin/$(ARCH)
-	@mkdir -p .go/src/$(PKG) .go/pkg .go/bin .go/std/$(ARCH)
-
-clean: container-clean bin-clean
-
-container-clean:
-	rm -rf .container-* .dockerfile-* .push-*
-
-bin-clean:
-	rm -rf .go bin
+.PHONY: init build clean test help default
