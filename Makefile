@@ -7,6 +7,9 @@ VERSION := $(shell git describe --tags --always --dirty)
 GIT_COMMIT=$(shell git rev-parse HEAD)
 GIT_DIRTY=$(shell test -n "`git status --porcelain`" && echo "+CHANGES" || true)
 IMAGE := $(REGISTRY)/$(BIN)
+MAJOR_VERSION := $(shell git describe --abbrev=0 | build/increment_version.sh -M)
+MINOR_VERSION := $(shell git describe --abbrev=0 | build/increment_version.sh -m)
+PATCH_VERSION := $(shell git describe --abbrev=0 | build/increment_version.sh -p)
 
 default: test
 
@@ -100,6 +103,23 @@ push-release: tag tag-release push
 	@echo "Pushing docker image to registry: release"
 	docker push $(IMAGE):release
 
+release-major: guard-GITHUB_TOKEN
+	@echo "Releasing $(MAJOR_VERSION)"
+	git tag -a v$(MAJOR_VERSION) -m "Releasing $(MAJOR_VERSION)"
+	git push origin v$(MAJOR_VERSION)
+	goreleaser --rm-dist
+
+release-minor: guard-GITHUB_TOKEN
+	@echo "Releasing $(MINOR_VERSION)"
+	git tag -a v$(MINOR_VERSION) -m "Releasing $(MINOR_VERSION)"
+	git push origin v$(MINOR_VERSION)
+	goreleaser --rm-dist
+
+release-patch: guard-GITHUB_TOKEN
+	@echo "Releasing $(PATCH_VERSION)"
+	git tag -a v$(PATCH_VERSION) -m "Releasing $(PATCH_VERSION)"
+	git push origin v$(PATCH_VERSION)
+	goreleaser --rm-dist
 
 clean:
 	@test ! -e bin/${BIN} || rm bin/${BIN}
