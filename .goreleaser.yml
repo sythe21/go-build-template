@@ -1,5 +1,6 @@
 builds:
   - binary: go-build-template
+    main: cmd/go-build-template/main.go
     goos:
       - windows
       - darwin
