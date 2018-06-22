@@ -9,4 +9,4 @@ builds:
       - amd64
 archive:
   files:
-  - none*
+    - README.md

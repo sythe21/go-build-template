@@ -5,3 +5,4 @@
 /.dockerfile-*
 vendor/
 .idea/
+dist/
