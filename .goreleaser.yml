@@ -11,6 +11,9 @@ release:
   github:
     owner: sythe21
     name: go-build-template
+  prerelease: false
+  draft: false
+  disable: false
 archive:
   format: tar.gz
   replacements:
