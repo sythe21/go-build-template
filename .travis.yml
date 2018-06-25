@@ -1,0 +1,10 @@
+language: go
+services:
+  - docker
+script:
+- make init-build
+- make build
+- make test
+- test -f bin/go-build-template
+- make package
+- docker images | grep go-build-template
