@@ -17,27 +17,28 @@ help:
 	@echo 'Management commands'
 	@echo
 	@echo 'Usage:'
-	@echo '    make init-build      Downloads build dependencies'
-	@echo '    make init            Downloads and installs all dependencies'
-	@echo '    make build           Compile the project.'
-	@echo '    make get-deps        runs dep ensure, mostly used for ci.'
-	@echo '    make build-alpine    Compile optimized for alpine linux.'
-	@echo '    make package         Build final docker image with just the go binary inside'
-	@echo '    make test            Run tests on a compiled project.'
-	@echo '    make login           Log in to docker registry - requires $DOCKER_USER and $DOCKER_PASS'
-	@echo '    make tag             Tag image created by package with latest, git commit and version'
-	@echo '    make tag-release     In addition to tag, also tags a :release build'
-	@echo '    make push            Push tagged images to registry'
-	@echo '    make push-release    In addition to push, also pushes a :release tag'
-	@echo '    make release-major   Releases a new major version to github using goreleaser (i.e 1.0.0 -> 2.0.0)'
-	@echo '    make release-minor   Releases a new minor version to github using goreleaser (i.e 1.0.0 -> 1.1.0)'
-	@echo '    make release-patch   Releases a new patch version to github using goreleaser (i.e 1.0.0 -> 1.0.1)'
-	@echo '    make clean           Clean the directory tree.'
-	@echo '    make fmt             Formats go code'
-	@echo '    make vet             Checks for suspicous constructs.'
-	@echo '    make lint            Checks for golang syntax.'
-	@echo '    make check           Runs vet and lint'
-	@echo '    make ver             Output the current application version'
+	@echo '    make init-build          Downloads build dependencies'
+	@echo '    make init                Downloads and installs all dependencies'
+	@echo '    make build               Compile the project.'
+	@echo '    make get-deps            Runs dep ensure, mostly used for ci.'
+	@echo '    make build-alpine        Compile optimized for alpine linux.'
+	@echo '    make package             Build final docker image with just the go binary inside'
+	@echo '    make package-multistage  Build final docker image using a multi-stage build (requires Docker >=17.05)'
+	@echo '    make test                Run tests on a compiled project.'
+	@echo '    make login               Log in to docker registry - requires $DOCKER_USER and $DOCKER_PASS'
+	@echo '    make tag                 Tag image created by package with latest, git commit and version'
+	@echo '    make tag-release         In addition to tag, also tags a :release build'
+	@echo '    make push                Push tagged images to registry'
+	@echo '    make push-release        In addition to push, also pushes a :release tag'
+	@echo '    make release-major       Releases a new major version to github using goreleaser (i.e 1.0.0 -> 2.0.0)'
+	@echo '    make release-minor       Releases a new minor version to github using goreleaser (i.e 1.0.0 -> 1.1.0)'
+	@echo '    make release-patch       Releases a new patch version to github using goreleaser (i.e 1.0.0 -> 1.0.1)'
+	@echo '    make clean               Clean the directory tree.'
+	@echo '    make fmt                 Formats go code'
+	@echo '    make vet                 Checks for suspicous constructs.'
+	@echo '    make lint                Checks for golang syntax.'
+	@echo '    make check               Runs vet and lint'
+	@echo '    make ver                 Output the current application version'
 	@echo
 
 init-build:
@@ -86,8 +87,12 @@ lint:
 	golint `go list ./... | grep -v /vendor/`
 
 package:
-	@echo "building image ${BIN} ${VERSION} $(GIT_COMMIT)"
-	docker build --build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` --build-arg VERSION=${VERSION} --build-arg GIT_COMMIT=$(GIT_COMMIT) -t $(BIN):local .
+	@echo "building image ${BIN} ${VERSION} $(GIT_COMMIT) using Dockerfile"
+	docker build -f Dockerfile --build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` --build-arg VERSION=${VERSION} --build-arg GIT_COMMIT=$(GIT_COMMIT) -t $(BIN):local .
+
+package-multistage:
+	@echo "building image ${BIN} ${VERSION} $(GIT_COMMIT) using Dockerfile.multistage"
+	docker build -f Dockerfile.multistage --build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` --build-arg VERSION=${VERSION} --build-arg GIT_COMMIT=$(GIT_COMMIT) -t $(BIN):local .
 
 login: guard-DOCKER_USER guard-DOCKER_PASS
 	@echo "Logging in to dockerhub ${REGISTRY}"	
