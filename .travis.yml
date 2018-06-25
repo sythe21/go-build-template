@@ -5,6 +5,6 @@ script:
 - make init-build
 - make build
 - make test
-- test -f bin/go-build-template
+- test -f $GOPATH/bin/go-build-template
 - make package
 - docker images | grep go-build-template
