@@ -37,6 +37,7 @@ help:
 	@echo '    make vet             Checks for suspicous constructs.'
 	@echo '    make lint            Checks for golang syntax.'
 	@echo '    make check           Runs vet and lint'
+	@echo '    make ver             Output the current application version'
 	@echo
 
 init-build:
@@ -133,6 +134,9 @@ clean:
 
 test:
 	go test -v ./...
+
+ver:
+	@echo "$(VERSION)"
 
 guard-%:
 	@ if [ "${${*}}" = "" ]; then \
