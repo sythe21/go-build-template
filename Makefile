@@ -73,9 +73,8 @@ build-%:
 	  -o ${GOPATH}/bin/${BIN} \
 	  cmd/go-build-template/main.go
 
-fmt: $(GO_SOURCES)
-	gofmt -w $<
-	goimports -w $<
+fmt:
+	gofmt ./...
 
 check: vet lint
 
