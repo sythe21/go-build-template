@@ -76,7 +76,7 @@ build-%:
 	  cmd/go-build-template/main.go
 
 fmt:
-	gofmt ./...
+	go fmt ./...
 
 check: vet lint
 
