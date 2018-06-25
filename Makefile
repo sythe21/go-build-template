@@ -83,7 +83,7 @@ vet:
 	go vet ./...
 
 lint:
-	golint ./...
+	golint `go list ./... | grep -v /vendor/`
 
 package:
 	@echo "building image ${BIN} ${VERSION} $(GIT_COMMIT)"
