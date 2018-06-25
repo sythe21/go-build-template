@@ -17,6 +17,8 @@ help:
 	@echo 'Management commands'
 	@echo
 	@echo 'Usage:'
+	@echo '    make init-build      Downloads build dependencies'
+	@echo '    make init            Downloads and installs all dependencies'
 	@echo '    make build           Compile the project.'
 	@echo '    make get-deps        runs dep ensure, mostly used for ci.'
 	@echo '    make build-alpine    Compile optimized for alpine linux.'
@@ -27,6 +29,9 @@ help:
 	@echo '    make tag-release     In addition to tag, also tags a :release build'
 	@echo '    make push            Push tagged images to registry'
 	@echo '    make push-release    In addition to push, also pushes a :release tag'
+	@echo '    make release-major   Releases a new major version to github using goreleaser (i.e 1.0.0 -> 2.0.0)'
+	@echo '    make release-minor   Releases a new minor version to github using goreleaser (i.e 1.0.0 -> 1.1.0)'
+	@echo '    make release-patch   Releases a new patch version to github using goreleaser (i.e 1.0.0 -> 1.0.1)'
 	@echo '    make clean           Clean the directory tree.'
 	@echo '    make fmt             Formats go code'
 	@echo '    make vet             Checks for suspicous constructs.'
@@ -34,10 +39,13 @@ help:
 	@echo '    make check           Runs vet and lint'
 	@echo
 
-init:
+init-build:
 	go get -u github.com/golang/dep/cmd/dep
 	go get -u golang.org/x/lint/golint
 	go get -u golang.org/x/tools/cmd/goimports
+	dep status 2>&1 > /dev/null || dep init
+
+init: init-build
 	go get -d github.com/goreleaser/goreleaser
 	cd ${GOPATH}/src/github.com/goreleaser/goreleaser && dep ensure -vendor-only && make setup build && mv goreleaser ${GOPATH}/bin
 	dep status 2>&1 > /dev/null || dep init
